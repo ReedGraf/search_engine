@@ -1,4 +1,6 @@
-# Search Engine
+# 🔍 Search Engine
+
+> ⚠️ This project is in a very primative state 🚧
 
 We're building a search engine!
 
