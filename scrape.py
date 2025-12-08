@@ -41,7 +41,7 @@ while True:
     timed = time.time()
     
     url = scraper.pop_next_url()
-    #print(url)
+    scraper.log(f"Starting scraping {url}")
     #print(2, time.time()-timed)
     timed = time.time()
 
