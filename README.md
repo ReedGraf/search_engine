@@ -15,8 +15,7 @@ Todo:
 - [x] - Scoring
 - [ ] - Web crawling
 - [ ] - Come up with a name
-- [ ] - Strip ?data from urls when indexed
-- [ ] - Right now the scrapers have a severe performance degredation, I need to fix that
+- [ ] - Make crawlers all reference a private ip for the sql server so it doesn't have to travel over the internet
 
 Cool features to add:
 

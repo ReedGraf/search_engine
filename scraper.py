@@ -24,23 +24,14 @@ import psycopg2.extras as extras
 from psycopg2.extras import execute_values
 
 USER_AGENT = "SearchEngineProjectBot/1.0 (+https://github.com/ThisIsNotANamepng/search_engine; hagenjj4111@uwec.edu)"
-# export DATABASE_URL="postgres://postgres:DlIR9P2EcH3140xzJojd1B5QK50sh3FxQIxORB59hAK1U@172.233.221.151:5432/search_engine"
 
 def get_conn():
     """Return a new psycopg2 connection using `DATABASE_URL` or PG_* env vars."""
-    #database_url = os.getenv("DATABASE_URL")
-    #if database_url:
-    #    return psycopg2.connect(database_url)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url)
 
-    # Build from individual env vars with sane defaults
-    host = os.getenv("PGHOST", "172.233.221.151")
-    port = os.getenv("PGPORT", "5432")
-    user = os.getenv("PGUSER", "postgres")
-    password = os.getenv("PGPASSWORD", "DlIR9P2EcH3140xzJojd1B5QK50sh3FxQIxORB59hAK1U")
-    dbname = os.getenv("PGDATABASE", "search_engine")
-
-    return psycopg2.connect(host=host, port=port, user=user, password=password, dbname=dbname)
-
+    #return psycopg2.connect(host=host, port=port, user=user, password=password, dbname=dbname)
 
 def create_database():
     conn = get_conn()
@@ -174,14 +165,11 @@ def text_from_html(body, url):
 
 
 def allowed_by_robots(url, user_agent):
-    
-    print("Getting robots.txt")
-    
+        
     parsed = urlparse(url)
     robots_url = urljoin(f"{parsed.scheme}://{parsed.netloc}", "robots.txt")
 
     rp = RobotFileParser()
-    print(4.3)
     # Avoid RobotFileParser.read() which uses urllib without a timeout and may block.
     # Instead, fetch robots.txt with `requests` using a timeout and feed the contents
     # to the parser via `rp.parse()`.
@@ -200,8 +188,6 @@ def allowed_by_robots(url, user_agent):
         # Any unexpected parsing error, be permissive
         return True
 
-    print(4.5)
-
     return rp.can_fetch(user_agent, url)
 
 
@@ -212,8 +198,6 @@ def get_main_text(url, timeout=None):
     On network errors or timeouts, returns empty text and empty links list.
     """
 
-    print("Fetching, timeout: ", timeout)
-
     if not allowed_by_robots(url, USER_AGENT):
         log(f"Blocked by robots.txt: {url}")
         return "", []
@@ -223,16 +207,12 @@ def get_main_text(url, timeout=None):
         "From": "hagenjj4111@uwec.edu"
     }
 
-    print(4.2)
-
     try:
         r = requests.get(url, headers=headers, timeout=timeout)
     except requests.exceptions.RequestException as e:
         log(f"HTTP error fetching {url}: {e}")
         return "", []
     
-    print(4.3)
-
     return text_from_html(r.content, url)
 
 
@@ -276,27 +256,15 @@ def store(url, timeout=None):
     """Store the page at `url` and return discovered links.
 
     If `timeout` is provided it is forwarded to HTTP fetch.
-    """
-    timed=time.time()
-    
+    """    
     text, links = get_main_text(url, timeout=timeout)
 
-    print(4.1, time.time()-timed)
-    timed=time.time()
-
     tokens = tokenizer.tokenize_all(text)
-    
-    print(4.2, time.time()-timed)
-    timed=time.time()
-
 
     if not text:
-        print("Failed to retrieve article text.")
+        log("Failed to retrieve article text.")
         return links
     
-    print(4.3, time.time()-timed)
-    timed=time.time()
-
 
     # tokens: [words, bigrams, trigrams, prefixes]
     words = set(tokens[0]) if tokens and len(tokens) > 0 else set()
@@ -304,14 +272,8 @@ def store(url, timeout=None):
     trigrams = set(tokens[2]) if tokens and len(tokens) > 2 else set()
     prefixes = set(tokens[3]) if tokens and len(tokens) > 3 else set()
 
-    print(4.4, time.time()-timed)
-    timed=time.time()
-
     conn = get_conn()
     cur = conn.cursor()
-
-    print(4.5, time.time()-timed)
-    timed=time.time()
 
     # Upsert the URL and get its id. Use RETURNING id when inserting; else SELECT.
     cur.execute("INSERT INTO urls (url) VALUES (%s) ON CONFLICT (url) DO NOTHING RETURNING id;", (url,))
@@ -322,9 +284,6 @@ def store(url, timeout=None):
         cur.execute("SELECT id FROM urls WHERE url = %s;", (url,))
         url_id = cur.fetchone()[0]
 
-    print(4.6, time.time()-timed)
-    timed=time.time()
-
     # Bulk insert words/bigrams/trigrams/prefixes using execute_values for speed.
     if words:
         extra_vals = [(w,) for w in words]
@@ -333,17 +292,11 @@ def store(url, timeout=None):
             extra_vals,
             template=None)
 
-    print(4.7, time.time()-timed)
-    timed=time.time()
-
     if bigrams:
         extra_vals = [(b,) for b in bigrams]
         extras.execute_values(cur,
             "INSERT INTO bigrams (bigram) VALUES %s ON CONFLICT (bigram) DO NOTHING;",
             extra_vals)
-
-    print(4.8, time.time()-timed)
-    timed=time.time()
 
     if trigrams:
         extra_vals = [(t,) for t in trigrams]
@@ -351,17 +304,11 @@ def store(url, timeout=None):
             "INSERT INTO trigrams (trigram) VALUES %s ON CONFLICT (trigram) DO NOTHING;",
             extra_vals)
 
-    print(4.9, time.time()-timed)
-    timed=time.time()
-
     if prefixes:
         extra_vals = [(p,) for p in prefixes]
         extras.execute_values(cur,
             "INSERT INTO prefixes (prefix) VALUES %s ON CONFLICT (prefix) DO NOTHING;",
             extra_vals)
-
-    print(4.10, time.time()-timed)
-    timed=time.time()
 
     # Fetch ids for all tokens in bulk
     def fetch_id_map(column, table, items):
@@ -378,17 +325,11 @@ def store(url, timeout=None):
     trigram_map = fetch_id_map('trigram', 'trigrams', list(trigrams))
     prefix_map = fetch_id_map('prefix', 'prefixes', list(prefixes))
 
-    print(4.11, time.time()-timed)
-    timed=time.time()
-
     # Prepare mapping inserts and bulk insert them
     word_url_pairs = [(word_map[w], url_id) for w in words if w in word_map]
     bigram_url_pairs = [(bigram_map[b], url_id) for b in bigrams if b in bigram_map]
     trigram_url_pairs = [(trigram_map[t], url_id) for t in trigrams if t in trigram_map]
     prefix_url_pairs = [(prefix_map[p], url_id) for p in prefixes if p in prefix_map]
-
-    print(4.12, time.time()-timed)
-    timed=time.time()
 
     if word_url_pairs:
         extras.execute_values(cur,
@@ -409,9 +350,6 @@ def store(url, timeout=None):
         extras.execute_values(cur,
             "INSERT INTO prefix_urls (prefix_id, url_id) VALUES %s;",
             prefix_url_pairs)
-
-    print(4.13, time.time()-timed)
-    timed=time.time()
 
     conn.commit()
     cur.close()
@@ -524,11 +462,7 @@ def pop_next_url():
         data = get_next_urls(conn, cur)
         first_id = data[0]
         first_url = data[1]
-        second_id = data[2]
         second_url = data[3]
-        print("looped")
-    print("Domain good")
-
 
     if get_base_domain(first_url) == get_base_domain(second_url):
         # rotate: remove first then reinsert it so it goes to the end
@@ -553,13 +487,6 @@ def get_host_ip():
         host_ip = socket.gethostbyname(socket.gethostname())
         if host_ip and not host_ip.startswith("127."):
             return host_ip
-    except Exception:
-        pass
-    # fallback to external service
-    try:
-        resp = requests.get("https://api.ipify.org", timeout=5)
-        if resp.status_code == 200:
-            return resp.text.strip()
     except Exception:
         pass
     return "unknown"

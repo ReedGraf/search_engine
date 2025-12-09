@@ -37,13 +37,13 @@ timed = time.time()
 start = timed
 
 while True:
-    print(1, time.time()-timed)
-    timed = time.time()
+    #print(1, time.time()-timed)
+    #timed = time.time()
     
     url = scraper.pop_next_url()
     scraper.log(f"Starting scraping {url}")
-    print(2, time.time()-timed)
-    timed = time.time()
+    #print(2, time.time()-timed)
+    #timed = time.time()
 
     if url is None:
         # either rotated due to domain-balancing or queue empty
@@ -52,20 +52,20 @@ while True:
         else:
             time.sleep(SLEEP_TIME)
             continue
-    print(3, time.time()-timed)
-    timed = time.time()
+    #print(3, time.time()-timed)
+    #timed = time.time()
 
     if scraper.exists(url, 'url'):
         continue
 
-    print(4, time.time()-timed)
-    timed = time.time()
+    #print(4, time.time()-timed)
+    #timed = time.time()
 
     try:
         # enforce a network/read timeout for page fetch and parsing
         links_to_scrape = scraper.store(url, timeout=TIMEOUT_TIME)
-        print(5, time.time()-timed)
-        timed = time.time()
+        #print(5, time.time()-timed)
+        #timed = time.time()
         total_links=0
 
         links_to_add_to_queue = []
@@ -86,20 +86,20 @@ while True:
 
         scraper.enqueue_urls(links_to_add_to_queue)
 
-        print(6, "links:", total_links, time.time()-timed)
-        timed = time.time()
+        #print(6, "links:", total_links, time.time()-timed)
+        #timed = time.time()
 
 
         scraper.log(f"Scraped {url}")
         total_scraped += 1
-        print(7, time.time()-timed)
-        timed = time.time()
+        #print(7, time.time()-timed)
+        #timed = time.time()
 
     except Exception as e:
         scraper.log(f"Error scraping {url}: {e}")
 
-    print(8, time.time()-timed)
-    timed = time.time()
+    #print(8, time.time()-timed)
+    #timed = time.time()
 
 
     if total_scraped % 10 == 0:
