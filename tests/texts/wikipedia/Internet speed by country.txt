@@ -1,0 +1,2 @@
+This is a list of countries by Internet connection speed for average and median data transfer rates for Internet access by end-users.
+The difference between average and median speeds is the way individual measurements are aggregated. Average speeds are more commonly used but can give a wrong impression of the actual user experience since fast connections can bias the average results. Median results represent the point where half the population has faster and the other half of the population has slower data transfer rates.

@@ -16,7 +16,10 @@ Indexes to index:
 
 
 How to set up for Windows:
--"python -m venv venv"
--"venv\Scripts\Activate"
--"$env:DATABASE_URL = "postgres://postgres:password@172.233.221.151:5432/search_engine"
--"pip install -r requirements.txt"
+
+```
+python -m venv venv
+venv\Scripts\Activate
+$env:DATABASE_URL = "postgres://postgres:password@172.233.221.151:5432/search_engine
+pip install -r requirements.txt
+```

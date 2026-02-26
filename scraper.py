@@ -63,7 +63,7 @@ class CSVTracker:
     def _write_all(self, rows: list[dict]):
         """Write all rows to CSV."""
         with open(self.filename, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=self.columns)
+            writer = csv.DictWrsiter(f, fieldnames=self.columns)
             writer.writeheader()
             writer.writerows(rows)
 
@@ -248,8 +248,8 @@ def create_database():
         id INT NOT NULL DEFAULT nextval('prefixes_id_seq')
     );
     CREATE TABLE IF NOT EXISTS urls (
-        url VARCHAR(2048) NOT NULL PRIMARY KEY,
-        id INT NOT NULL DEFAULT nextval('urls_id_seq')
+        url VARCHAR(2048) NOT NULL,
+        id INT NOT NULL DEFAULT nextval('urls_id_seq') PRIMARY KEY
     );
     CREATE TABLE IF NOT EXISTS urls_references (
         url VARCHAR(2048) NOT NULL PRIMARY KEY,
@@ -581,6 +581,8 @@ def store(url, timeout=None):
 
     conn = get_conn()
     cur = conn.cursor()
+
+    print(cur)
 
     #debug_print("Getting SQL connection and cursor:")
 

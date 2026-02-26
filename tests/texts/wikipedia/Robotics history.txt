@@ -1,0 +1,3 @@
+The history of robots has its origins in the ancient world. During the Industrial Revolution, humans developed the structural engineering capability to control electricity so that machines could be powered with small motors. In the early 20th century, the notion of a humanoid machine was developed.
+The first uses of modern robots were in factories as industrial robots. These industrial robots were fixed machines capable of manufacturing tasks which allowed production with less human work. Digitally programmed industrial robots with artificial intelligence have been built since the 2000s.
+

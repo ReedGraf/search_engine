@@ -20,6 +20,7 @@
 - [ ] Still tries to scrape image files, fix that
 - [ ] Add logging to store which pages are in which language so we can measure how much of the web is in which language
 - [ ] Add global function for lceaning the links we get (there are duplicate functions in scrape.py and scraper.py)
+- [ ] Investigate potentially wighting some parts of the website to matter more in the search algorithm 
 
 ## Database
 
