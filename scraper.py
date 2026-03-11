@@ -1,11 +1,6 @@
 """
-PostgreSQL-backed scraper module (ported from sqlite3_scraper.py).
+Functions for scraping
 
-Usage:
- - Set `DATABASE_URL` environment variable (or PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT).
- - Install dependency: `psycopg2-binary`.
-
-This file mirrors the original SQLite implementation but uses psycopg2/Postgres.
 """
 
 import os
@@ -23,9 +18,199 @@ from psycopg2 import sql
 import psycopg2.extras as extras
 from psycopg2.extras import execute_values
 from langdetect import detect
+import csv
 import signal
+from typing import Optional
 
-USER_AGENT = "SearchEngineProjectBot/1.0 (+https://github.com/ThisIsNotANamepng/search_engine; hagenjj4111@uwec.edu)"
+USER_AGENT = "StultusSearchEngine/1.0 (+https://stultus.rip; crawler@stultus.rip)"
+DEBUG_BREAKPOINT_TIMER = time.time()
+# Look for the DEBUG shell varialbe and set a global variable to True or false base don whether it was passed
+DEBUG = "DEBUG" in os.environ
+LEVEL = os.environ["DEBUG"] if DEBUG else False
+URL = ""
+
+class CSVTracker:
+    def __init__(self, filename: str = "timing.csv"):
+        self.filename = filename
+        self.columns = [
+            "url",
+            "downloaded_text",
+            "detected_language",
+            "tokenized",
+            "cleaned_and_split",
+            "added_new_tokens",
+            "made_token_maps",
+            "made_insert_statements",
+            "execute_insert_statements",
+            "committed_and_closed",
+            "total"
+        ]
+        self._ensure_file_exists()
+
+    def _ensure_file_exists(self):
+        """Create CSV with headers if it doesn't exist."""
+        if not os.path.exists(self.filename):
+            with open(self.filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=self.columns)
+                writer.writeheader()
+
+    def _read_all(self) -> list[dict]:
+        """Read all rows from CSV."""
+        with open(self.filename, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            return list(reader)
+
+    def _write_all(self, rows: list[dict]):
+        """Write all rows to CSV."""
+        with open(self.filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWrsiter(f, fieldnames=self.columns)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def update(self, url: str, column: str, value) -> bool:
+        """
+        Update a specific column for a given URL.
+        Creates new row if URL doesn't exist.
+
+        Args:
+            url: The URL to update (primary key)
+            column: Column name to update
+            value: Value to set
+
+        Returns:
+            True if successful, False if column invalid
+        """
+        if column not in self.columns:
+            print(f"Error: Invalid column '{column}'. Valid columns: {self.columns}")
+            return False
+
+        rows = self._read_all()
+
+        # Find existing row or create new one
+        row_found = False
+        for row in rows:
+            if row.get("url") == url:
+                row[column] = value
+                row_found = True
+                break
+
+        if not row_found:
+            # Create new row with URL and empty values
+            new_row = {col: "" for col in self.columns}
+            new_row["url"] = url
+            new_row[column] = value
+            rows.append(new_row)
+
+        self._write_all(rows)
+        return True
+
+    def get(self, url: str) -> Optional[dict]:
+        """Get a row by URL."""
+        rows = self._read_all()
+        for row in rows:
+            if row.get("url") == url:
+                return row
+        return None
+
+    def get_all(self) -> list[dict]:
+        """Get all rows."""
+        return self._read_all()
+
+TIMING_TRACKER = CSVTracker("timing.csv") if LEVEL == "3" else ""
+
+def debug_print(text):
+    """
+    Print system stats when DEBUG is set 
+    
+    DEBUG = 1 Prints for each print statement
+    DEBUG = 2 Prints for each print statement and includes timing
+    DEBUG = 3 Prints for each print statement and includes timing and saves data to timing.csv
+
+    TODO:
+        - All debug print (info_print and failure_print too) should have a option, maybe DEBUG=3 to write all of the debug stuff to a file log as well as printing
+    """
+
+    global DEBUG_BREAKPOINT_TIMER
+    global DEBUG
+    global LEVEL
+
+    def format_time(timestamp):
+        return f"{timestamp:.4f}"
+
+    if DEBUG:
+
+        if text == "":
+            # Just wants to reset the timer, functions to track the timing for aren't next to each other, need to reset the time in the debug_breakpoint_timer to zero before starting new function
+            DEBUG_BREAKPOINT_TIMER = time.time()
+            return
+        
+        if LEVEL == "1":
+            print(text)
+
+        elif LEVEL == "2":
+
+            print(format_time(time.time()-DEBUG_BREAKPOINT_TIMER), text)
+
+            DEBUG_BREAKPOINT_TIMER = time.time()
+
+        elif LEVEL == "3":
+            global TIMING_TRACKER
+            global URL
+
+            print(format_time(time.time()-DEBUG_BREAKPOINT_TIMER), text)
+            timing = format_time(time.time()-DEBUG_BREAKPOINT_TIMER)
+
+            # From the debug message that's passed we can derive a unique key for the columns in the debug csv file
+            if "Visi" == text[0:4]:
+                # "Visited site, got main text and links"
+                code = "downloaded_text"
+            elif "Dete" == text[0:4]:
+                # "Detected language"
+                code = "detected_language"
+            elif "Toke" == text[0:4]:
+                # "Tokenized"
+                code = "tokenized"
+            elif "Clea" == text[0:4]:
+                # "Cleaned links and split tokens into words, bigrams, trigrams, prefixes"
+                code = "cleaned_and_split"
+            elif "Adde" == text[0:4]:
+                # "Added new, unseen tokens to the database"
+                code = "added_new_tokens"
+            elif "Made t" == text[0:6]:
+                # "Made token maps"
+                code = "made_token_maps"
+            elif "Made i" == text[0:6]:
+                # "Made insert stementes for <token>_url tables"
+                code = "made_insert_statements"
+            elif "Exec" == text[0:4]:
+                # "Executed insert statements, stored url.id_token.id pairs"
+                code = "execute_insert_statements"
+            elif "Comm" == text[0:4]:
+                # "Committed and closed sql connection"
+                code = "committed_and_closed"
+            else:
+                print(f"Code not found: {text}  ::  {text[0:5]}")
+
+            TIMING_TRACKER.update(URL, code, timing)
+
+            DEBUG_BREAKPOINT_TIMER = time.time()
+
+
+def info_print(text):
+    # For debugging and printing statements which notify what's happening, not that need to be timed
+
+    if "DEBUG" in os.environ:
+        print('\033[2;34;43m '+text+' \033[0;0m')
+
+        #print(text)
+        
+def failure_print(text):
+    # For when things fail to the point of breaking and don't need timing, just debug logs
+
+    if "DEBUG" in os.environ:
+        print('\033[30;41m ' + "Fatal: " + str(text) + ' \033[0m')
+    else:
+        print(text)
 
 def get_conn():
     """Return a new psycopg2 connection using `DATABASE_URL` or PG_* env vars."""
@@ -33,7 +218,7 @@ def get_conn():
     if database_url:
         return psycopg2.connect(database_url)
     else:
-        print("Failed to connect to server")
+        failure_print("Failed to connect to server")
 
     #return psycopg2.connect(host=host, port=port, user=user, password=password, dbname=dbname)
 
@@ -66,9 +251,41 @@ def create_database():
         id INT NOT NULL DEFAULT nextval('prefixes_id_seq')
     );
     CREATE TABLE IF NOT EXISTS urls (
-        url VARCHAR(2048) NOT NULL PRIMARY KEY,
-        id INT NOT NULL DEFAULT nextval('urls_id_seq')
+        url VARCHAR(2048) NOT NULL UNIQUE,
+        id INT NOT NULL DEFAULT nextval('urls_id_seq') PRIMARY KEY
     );
+    CREATE TABLE IF NOT EXISTS urls_references (
+        url VARCHAR(2048) NOT NULL PRIMARY KEY,
+        referenced_domain VARCHAR(2048) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS total_references (
+        domain VARCHAR(2048) NOT NULL PRIMARY KEY,
+        total_references INT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS entities (
+        entity_text VARCHAR(2048) NOT NULL PRIMARY KEY,
+        id INT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS entity_urls (
+        url VARCHAR(2048) NOT NULL PRIMARY KEY,
+        entity_url INT NOT NULL
+    );
+                
+
+    CREATE TABLE IF NOT EXISTS url_queue (
+        id SERIAL PRIMARY KEY,
+        url VARCHAR(2048) UNIQUE NOT NULL,
+        enqueued_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS logs (
+        id SERIAL PRIMARY KEY,
+        ts TIMESTAMP DEFAULT now(),
+        ip VARCHAR(64),
+        message TEXT
+    );
+
+
 
     CREATE TABLE IF NOT EXISTS bigram_urls (bigram_id INT NOT NULL, url_id INT NOT NULL);
     CREATE TABLE IF NOT EXISTS trigram_urls (trigram_id INT NOT NULL, url_id INT NOT NULL);
@@ -78,8 +295,6 @@ def create_database():
     CREATE TABLE IF NOT EXISTS weights (type TEXT PRIMARY KEY, weight FLOAT NOT NULL);
     """)
 
-    # create queue and logs tables as well
-    _extend_create_database_tables(cur)
 
     conn.commit()
     cur.close()
@@ -220,6 +435,7 @@ def get_main_text(url, timeout=None):
 
     if not allowed_by_robots(url, USER_AGENT):
         log(f"Blocked by robots.txt {url}")
+        info_print("Not allowed by robots.txt")
         return "", []
 
     headers = {
@@ -268,6 +484,10 @@ def log(message):
     - Misc: Misc {message} {url}
 
     This is for measuring success/error rate in the dashboard
+
+    TODO:
+        - Change the logs table to add a column for error/success/misc
+        - Add a table for success/error rate, an integer in the table should be increase by one for each success/error
     """
     # write to local file
     #with open("scraper.log", "a") as f:
@@ -310,13 +530,13 @@ def store(url, timeout=None):
 
     If `timeout` is provided it is forwarded to HTTP fetch.
     """
-    #print("Starting storing")
-    m=time.time()
+    #info_print("Starting storing")
+    global URL
+    URL = url
 
     content = get_main_text(url, timeout=timeout)
 
-    #print(f"Getting main text: {time.time()-m}")
-    m=time.time()
+    debug_print("Visited site, got main text and links")
 
     if content != False:
         # The url contains real text to scrape
@@ -324,30 +544,52 @@ def store(url, timeout=None):
         links = content[1]
     else:
         # Url is a file format which cannot be scraped
+        ## TODO: I don't think this completely works, need to test with a abunch of file formats so we don't try to scrape files like images and stuff
+
+        info_print("URL stores a file format we can't scrape")
         return
-
-    #print(f"Spliting text: {time.time()-m}")
-    m=time.time()
-
-
+    
+    # Making sure there is text at all. I chose 4 arbitrarily
+    if len(text) < 4:
+        return [links, False]
+    
     # Check for english language
     if detect(text) != 'en':
+        # TODO: Add something here to the logs logging which pages are in what language so we can measure how much of the web is in what language
         log(f"Language Not in English {url}")
-        return links
+        info_print("Language not in English, skipping")
 
-    #print(f"Detecting language: {time.time()-m}")
-    m=time.time()
+        return [links, False]
+
+    debug_print("Detected language")
 
 
     tokens = tokenizer.tokenize_all(text) #TODO: I want to see how expensive it is to check if each token is in the database already, you'd have to search all of the tokens to find if it's in the database
 
-    #print(f"Geeting tokens: {time.time()-m}")
-    m=time.time()
+    debug_print("Tokenized")
 
+    ##TODO: This can probably be deleted because I added a statement checking if text is longer that 5 characters beofre echking the language
     if not text:
         log(f"Error Failed to retrieve page text {url}")
+        failure_print("Error Failed to retrieve page text")
         return links
         
+
+    # Clean links, this is copied from scrape.py, should probably have a shred function but it's 10:55pm and I'm tired
+    raw_links = [i for i in links if "mailto:" not in i]
+    cleaned = []
+
+    for link in raw_links:
+        # Get rid of ?post=data
+        clean_link = link.split('?', 1)[0]
+        clean_link = link.split('#')[0]
+        if clean_link not in cleaned:
+            link_domain = get_base_domain(clean_link)
+            if clean_link[0:4] == "http" and get_base_domain(url) != link_domain:
+                cleaned.append(link_domain)
+
+    # A list of the links in the scraped page
+    links = cleaned
 
     # tokens: [words, bigrams, trigrams, prefixes]
     words = set(tokens[0]) if tokens and len(tokens) > 0 else set()
@@ -355,16 +597,15 @@ def store(url, timeout=None):
     trigrams = set(tokens[2]) if tokens and len(tokens) > 2 else set()
     prefixes = set(tokens[3]) if tokens and len(tokens) > 3 else set()
 
-    #print(f"Splitting into words, bigrams, trigrams, prefixes: {time.time()-m}")
-    m=time.time()
+    debug_print("Cleaned links and split tokens into words, bigrams, trigrams, prefixes")
 
 
     conn = get_conn()
     cur = conn.cursor()
 
-    #print(f"Getting SQL connection and cursor: {time.time()-m}")
-    m=time.time()
+    #print(cur)
 
+    #debug_print("Getting SQL connection and cursor:")
 
     # Upsert the URL and get its id. Use RETURNING id when inserting; else SELECT.
     cur.execute("INSERT INTO urls (url) VALUES (%s) ON CONFLICT (url) DO NOTHING RETURNING id;", (url,))
@@ -374,6 +615,8 @@ def store(url, timeout=None):
     else:
         cur.execute("SELECT id FROM urls WHERE url = %s;", (url,))
         url_id = cur.fetchone()[0]
+    
+    #print("Ececuted into db fine")
 
     # Bulk insert words/bigrams/trigrams/prefixes using execute_values for speed.
     if words:
@@ -400,6 +643,14 @@ def store(url, timeout=None):
         extras.execute_values(cur,
             "INSERT INTO prefixes (prefix) VALUES %s ON CONFLICT (prefix) DO NOTHING;",
             extra_vals)
+        
+    if links:
+        extra_vals = [(url, l) for l in links]
+        extras.execute_values(cur,
+            "INSERT INTO urls_references (url, referenced_domain) VALUES %s ON CONFLICT (url) DO NOTHING;",
+            extra_vals,
+            template=None)
+
 
     # Fetch ids for all tokens in bulk
     def fetch_id_map(column, table, items):
@@ -411,18 +662,14 @@ def store(url, timeout=None):
         rows = cur.fetchall()
         return {val: id for (id, val) in rows}
     
-    #print(f"Putting tokens into database: {time.time()-m}")
-    m=time.time()
-
+    debug_print("Added new, unseen tokens to the database")
 
     word_map = fetch_id_map('word', 'words', list(words))
     bigram_map = fetch_id_map('bigram', 'bigrams', list(bigrams))
     trigram_map = fetch_id_map('trigram', 'trigrams', list(trigrams))
     prefix_map = fetch_id_map('prefix', 'prefixes', list(prefixes))
 
-    #print(f"Making token maps: {time.time()-m}")
-    m=time.time()
-
+    debug_print("Made token maps")
 
     # Prepare mapping inserts and bulk insert them
     word_url_pairs = [(word_map[w], url_id) for w in words if w in word_map]
@@ -430,8 +677,7 @@ def store(url, timeout=None):
     trigram_url_pairs = [(trigram_map[t], url_id) for t in trigrams if t in trigram_map]
     prefix_url_pairs = [(prefix_map[p], url_id) for p in prefixes if p in prefix_map]
 
-    #print(f"Making inserts: {time.time()-m}")
-    m=time.time()
+    debug_print("Made insert stementes for <token>_url tables")
 
     if word_url_pairs:
         extras.execute_values(cur,
@@ -453,16 +699,13 @@ def store(url, timeout=None):
             "INSERT INTO prefix_urls (prefix_id, url_id) VALUES %s;",
             prefix_url_pairs)
 
-    #print(f"SQL executing token_urls: {time.time()-m}")
-    m=time.time()
-
+    debug_print("Executed insert statements, stored url.id_token.id pairs")
 
     conn.commit()
     cur.close()
     conn.close()
 
-    #print(f"Committing and closing sql connection: {time.time()-m}")
-    m=time.time()
+    debug_print("Committed and closed sql connection")
 
     return links
 
@@ -520,6 +763,7 @@ def queue_size():
     return count
 
 def get_next_urls(num_urls):
+    #print("HT=================")
     # Returns a list of the next urls in the queue, deletes them from the db queue
 
     conn = get_conn()
@@ -541,6 +785,8 @@ def get_next_urls(num_urls):
     conn.commit()
     cur.close()
     conn.close()
+
+    #print("URLS", urls)
 
     return urls
 
@@ -714,24 +960,6 @@ def delete_from_queue(url):
     cur.close()
     conn.close()
     return deleted
-
-# Ensure queue and logs tables are created when creating DB
-def _extend_create_database_tables(cur):
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS url_queue (
-        id SERIAL PRIMARY KEY,
-        url VARCHAR(2048) UNIQUE NOT NULL,
-        enqueued_at TIMESTAMP DEFAULT now()
-    );
-
-    CREATE TABLE IF NOT EXISTS logs (
-        id SERIAL PRIMARY KEY,
-        ts TIMESTAMP DEFAULT now(),
-        ip VARCHAR(64),
-        message TEXT
-    );
-    """)
-
 
 # ------------ Redis functions
 
