@@ -160,32 +160,35 @@ while True:
     # Clean, deduplicate and filter links in bulk for performance
     raw_links = [i for i in links_to_scrape if "mailto:" not in i]
 
+
     seen = set()
     cleaned = []
 
     for link in raw_links:
         #print(link)
-        # Get rid of ?post=data
+        # Get rid of ?post=data and #section data
         total_links += 1
         clean_link = link.split('?', 1)[0]
+        clean_link = link.split('#', 1)[0]
         if clean_link not in seen:
             seen.add(clean_link)
             cleaned.append(clean_link)
-    
-            # Increment reference count for unique cleaned links
-        if cleaned:
-            conn = scraper.get_conn()
-            cur = conn.cursor()
 
-            cur.execute("""
-                UPDATE urls
-                SET reference_count = reference_count + 1
-                WHERE url = ANY(%s);
-            """, (cleaned,))
+    # Batch add url references after cleaning
+    if cleaned:
+        conn = scraper.get_conn()
+        cur = conn.cursor()
 
-            conn.commit()
-            cur.close()
-            conn.close()
+        cur.execute("""
+            UPDATE urls
+            SET reference_count = reference_count + 1
+            WHERE url = ANY(%s);
+        """, (cleaned,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
 
     # filter_new_urls checks both the queue and stored urls in one go
     links_to_add_to_queue = scraper.filter_new_urls(cleaned)
