@@ -259,10 +259,6 @@ def create_database():
         url VARCHAR(2048) NOT NULL PRIMARY KEY,
         referenced_domain VARCHAR(2048) NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS total_references (
-        domain VARCHAR(2048) NOT NULL PRIMARY KEY,
-        total_references INT NOT NULL
-    );
     CREATE TABLE IF NOT EXISTS entities (
         entity_text VARCHAR(2048) NOT NULL PRIMARY KEY,
         id INT NOT NULL

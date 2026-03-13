@@ -187,19 +187,23 @@ while True:
     #print("CLEANED", cleaned)
     
     # Batch add url references after cleaning
-    if cleaned and len(cleaned) > 0 and not cleaned[1]:
-        conn = scraper.get_conn()
-        cur = conn.cursor()
+    if cleaned and len(cleaned) > 0:
+        current_domain = scraper.get_base_domain(url)
+        external_links = [link for link in cleaned if scraper.get_base_domain(link) != current_domain]
 
-        cur.execute("""
-            UPDATE urls
-            SET reference_count = reference_count + 1
-            WHERE url = ANY(%s);
-        """, (cleaned,))
+        if external_links:
+            conn = scraper.get_conn()
+            cur = conn.cursor()
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            cur.execute("""
+                UPDATE urls
+                SET reference_count = reference_count + 1
+                WHERE url = ANY(%s);
+            """, (external_links,))
+
+            conn.commit()
+            cur.close()
+            conn.close()
 
     #print("cleaned:", cleaned)
 

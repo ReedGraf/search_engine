@@ -104,7 +104,7 @@ def search(query):
                 COALESCE(tm.trigram_score, 0) AS trigram_score,
                 COALESCE(pm.prefix_score, 0) AS prefix_score,
                 utc.word_count AS word_count,
-                u.reference_count AS reference_count  -- adjust if your column name differs
+                u.reference_count AS reference_count
             FROM urls u
             JOIN url_token_counts utc ON utc.url_id = u.id
             LEFT JOIN word_matches wm ON wm.url_id = u.id
@@ -123,7 +123,8 @@ def search(query):
                     word_score +
                     word_count
                 ) / word_count
-            ) * c.reference_count AS search_output
+            ) * c.reference_count AS search_output,
+            c.reference_count
         FROM combined c
         JOIN urls u ON u.id = c.url_id
         WHERE
@@ -156,7 +157,8 @@ def search(query):
     print("Time taken:", time.time() - start)
     results = cur.fetchall()
 
-    print(results)
+    for url, score, ref_count in results:
+        print(f"{url}  |  score: {score}  |  reference_count: {ref_count}")
 
     cur.close()
     conn.close()
@@ -164,5 +166,5 @@ def search(query):
 
 # Example usage:
 # query = input("Search query: ")
-query = "best way to cook chicken"
+query = "disney"
 search(query)
