@@ -54,7 +54,7 @@ def search(query):
         WITH
         word_matches AS (
             SELECT wu.url_id,
-                SUM(LENGTH(w.word) / 2.0) AS word_score -- bias toward longer words, but that is intentional because they probably show up less. this also normalizes word length to bigrams and trigrams which are naturally also biased toward longer words since they will create more bigrams/trigrams
+                COUNT(*) * 20 AS word_score --for each word match to the search on a website, it gives a 20x scalar 
             FROM word_urls wu
             JOIN words w ON w.id = wu.word_id
             WHERE w.word = ANY(%s)
@@ -82,14 +82,7 @@ def search(query):
         prefix_matches AS (
             SELECT 
                 pu.url_id,
-                SUM(
-                    CASE
-                        WHEN LENGTH(p.prefix) %% 3 = 0
-                            THEN CEIL(LENGTH(p.prefix) / 3.0) + 1
-                        ELSE
-                            CEIL(LENGTH(p.prefix) / 3.0)
-                    END
-                ) AS prefix_score
+                    COUNT(*) * 10 AS prefix_score --gives 10x scalar when a prefix match is detected for each prefix on a website
             FROM prefix_urls pu
             JOIN prefixes p ON p.id = pu.prefix_id
             WHERE p.prefix = ANY(%s)
@@ -111,27 +104,37 @@ def search(query):
             LEFT JOIN bigram_matches bm ON bm.url_id = u.id
             LEFT JOIN trigram_matches tm ON tm.url_id = u.id
             LEFT JOIN prefix_matches pm ON pm.url_id = u.id
-        )
+        ),
+        scored AS(
+            SELECT
+                u.url,
+                (
+                    (
+                        prefix_score +
+                        bigram_score +
+                        trigram_score +
+                        word_score +
+                        word_count
+                    ) / word_count
+                ) AS relevance,
+                (3.0 - ((c.reference_count::float8 + 1.0) / c.reference_count::float8))::double precision AS ref_score,
+                c.reference_count
+            FROM combined c
+            JOIN urls u ON u.id = c.url_id
+            WHERE
+                word_score > 0
+                OR bigram_score > 0
+                OR trigram_score > 0
+                OR prefix_score > 0
+            )
 
         SELECT
-            u.url,
-            (
-                (
-                    prefix_score +
-                    bigram_score +
-                    trigram_score +
-                    word_score +
-                    word_count
-                ) / word_count
-            ) * c.reference_count AS search_output,
-            c.reference_count
-        FROM combined c
-        JOIN urls u ON u.id = c.url_id
-        WHERE
-            word_score > 0
-            OR bigram_score > 0
-            OR trigram_score > 0
-            OR prefix_score > 0
+            url,
+            relevance * ref_score AS search_output,
+            relevance,
+            ref_score,
+            reference_count
+        FROM scored
         ORDER BY search_output DESC
         LIMIT 10;
         """
@@ -157,8 +160,8 @@ def search(query):
     print("Time taken:", time.time() - start)
     results = cur.fetchall()
 
-    for url, score, ref_count in results:
-        print(f"{url}  |  score: {score}  |  reference_count: {ref_count}")
+    for url, score, relevance, ref_score, ref_count in results:
+            print(f"{url}  |  score: {score}  |  relevance: {relevance}  |  ref_score: {ref_score} | reference_count: {ref_count}")
 
     cur.close()
     conn.close()
@@ -166,5 +169,5 @@ def search(query):
 
 # Example usage:
 # query = input("Search query: ")
-query = "disney"
+query = "jack"
 search(query)
