@@ -1,3 +1,5 @@
+import math
+
 import nltk
 import string
 
@@ -130,7 +132,12 @@ def tokenize_all(text):
     wordgrams = cleaned_text
     bigrams = tokenize_bigrams(cleaned_text)
     trigrams = tokenize_trigrams(cleaned_text)
-    prefixes = tokenize_prefixes(cleaned_text, 3) #Just sticks to prefixes of 3 for now, can change later
+    prefixes = []
+    for word in cleaned_text:
+        n = math.ceil(len(word) / 3)
+        if n > 0:
+            prefixes.append(word[:n])
+    prefixes = list(set(prefixes))
 
     return [wordgrams, bigrams, trigrams, prefixes]
 
