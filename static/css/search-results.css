@@ -36,12 +36,6 @@ footer {
   gap: 10px;
 }
 
-#footerParagraph {
-  margin: 0;
-  text-align: center;
-  white-space: nowrap;
-}
-
 @media (max-width: 700px) {
   footer {
     flex-direction: column;
@@ -55,16 +49,6 @@ footer {
     order: -1;
     white-space: normal;
   }
-}
-
-.externalUrl {
-  color: inherit;
-  text-decoration: none;
-  padding: 6px 14px;
-  border: 1px solid currentColor;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .externalUrl:hover {
@@ -116,7 +100,7 @@ footer {
 .result p {
   margin-top: 0px;
   margin-bottom: 10px;
-  font-size: 18px;
+  font-size: 16px;
   font-style: italic;
   color: var(--debug-text);
 }
