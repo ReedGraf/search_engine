@@ -252,7 +252,7 @@ def create_database():
     );
     CREATE TABLE IF NOT EXISTS urls (
         url VARCHAR(2048) NOT NULL UNIQUE,
-        icon_url VARCHAR(2048),
+        icon_link VARCHAR(2048),
         title VARCHAR(128),
         id INT NOT NULL DEFAULT nextval('urls_id_seq') PRIMARY KEY,
         reference_count INT NOT NULL DEFAULT 1
@@ -380,10 +380,10 @@ def text_from_html(body, url):
 
     if title == None:
         title = url
-        print("Found none title")
+        #print("Found none title")
     else:
         title = title.string
-        print("Foound title:,", title)
+        #print("Foound title:,", title)
 
     icon_link = (
         soup.find('link', rel='shortcut icon') or
@@ -576,8 +576,6 @@ def store(url, timeout=None):
     content = get_main_text(url, timeout=timeout)
 
     debug_print("Visited site, got main text and links")
-
-    print(content)
 
 
     if content != False:
