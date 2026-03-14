@@ -27,6 +27,7 @@ DATABASE_URL="postgres://postgres:postgressPassword@postgressIP:5432/search_engi
 
 ```powershell
 # Windows
+# you can't scrape on Windows, the scraper uses a function only available on Linux
 git clone https://github.com/ThisIsNotANamepng/search_engine.git
 cd search_engine
 python -m venv venv
