@@ -175,5 +175,5 @@ def search(query):
 
 # Example usage:
 # query = input("Search query: ")
-query = "disney"
-search(query)
+#query = "disney"
+#search(query)
